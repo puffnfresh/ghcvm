@@ -70,10 +70,22 @@ let
       --run 'cat "${etlasConfig}" > $HOME/.etlas/config' \
       --prefix PATH : "${lib.makeBinPath [ hpkgs.eta etaPkgWrapper ]}"
     '';
+
+  rtsjar = stdenv.mkDerivation {
+    name = "rts.jar";
+    buildInputs = [ hpkgs.eta-build jdk ];
+    src = onlyFiles [ "libraries" "rts" ] ./.;
+    buildPhase = ''
+      eta-build libraries/rts/build/rts.jar
+    '';
+    installPhase = ''
+      mv libraries/rts/build/rts.jar $out
+    '';
+  };
 in
 hpkgs // {
   etaPackages = rec {
-    callPackage = { pname, version, src, libraryHaskellDepends ? [], postInstall ? "" }:
+    callPackage = { pname, version, src, libraryHaskellDepends ? [], preBuild ? "", postInstall ? "" }:
       stdenv.mkDerivation ({
         name = "${pname}-${version}";
         inherit src;
@@ -102,6 +114,8 @@ hpkgs // {
              --allow-boot-library-installs
         '';
         buildPhase = ''
+          runHook preBuild
+
           etlas build \
              --allow-boot-library-installs \
              --package-db="$packageConfDir"
@@ -124,6 +138,7 @@ hpkgs // {
           runHook postInstall
         '';
       }
+      // lib.optionalAttrs (preBuild != "")       { inherit preBuild; }
       // lib.optionalAttrs (postInstall != "")    { inherit postInstall; }
       );
 
@@ -268,6 +283,10 @@ hpkgs // {
       pname = "rts";
       version = "0.1.0.0";
       src = ./libraries/rts;
+      preBuild = ''
+        mkdir build
+        ln -s ${rtsjar} build/rts.jar
+      '';
     };
   };
 
